@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, onUnmounted } from 'vue';
+import { onMounted, ref, onUnmounted, watch } from 'vue';
 import 'cesium/Build/CesiumUnminified/Widgets/widgets.css';
 import {
   initCesium,
@@ -11,33 +11,45 @@ import {
   useMapState,
   usePolygonDrawingState
 } from './services';
+import { ScreenSpaceEventHandler, ScreenSpaceEventType } from 'cesium';
 
-// 創建 DOM 引用
+// 创建 DOM 引用
 const viewerDivRef = ref<HTMLDivElement>();
 
-// 獲取配置
+// 获取配置
 const config = getAppConfig();
 
 // 初始化 Cesium
 initCesium(config);
 
-// 使用狀態服務創建響應式狀態
+// 使用状态服务创建响应式状态
 const { isMapboxActive, viewer } = useMapState();
 const { isEditMode, points, editingPolygon, eventHandler } = usePolygonDrawingState();
 
-// 組件掛載時初始化 Cesium Viewer
+// 组件挂载时初始化 Cesium Viewer
 onMounted(() => {
   if (viewerDivRef.value) {
     // 初始化 Viewer
     viewer.value = createViewer(viewerDivRef.value);
     
-    // 添加懷俄明州多邊形並縮放至其位置
+    // 添加怀俄明州多边形并缩放至其位置
     const wyoming = addWyomingPolygon(viewer.value);
     viewer.value.zoomTo(wyoming);
+    
+    // 添加全局右键事件监听
+    const handler = new ScreenSpaceEventHandler(viewer.value.scene.canvas);
+    handler.setInputAction(() => {
+      // 当在编辑模式下检测到右键点击时，设置 isEditMode 为 false
+      if (isEditMode.value === true) {
+        setTimeout(() => {
+          isEditMode.value = false;
+        }, 100); // 使用小延迟确保原始事件处理后执行
+      }
+    }, ScreenSpaceEventType.RIGHT_CLICK);
   }
 });
 
-// 切換底圖函數
+// 切换底图函数
 function handleToggleBaseMap() {
   if (viewer.value) {
     toggleBaseMap({
@@ -45,12 +57,12 @@ function handleToggleBaseMap() {
       viewer: viewer.value
     }, config.mapboxAccessToken);
     
-    // 更新狀態（因為 toggleBaseMap 函數會修改傳入的物件，但不會修改 ref 的值）
+    // 更新状态（因为 toggleBaseMap 函数会修改传入的对象，但不会修改 ref 的值）
     isMapboxActive.value = !isMapboxActive.value;
   }
 }
 
-// 切換編輯模式函數
+// 切换编辑模式函数
 function handleToggleEditMode() {
   if (viewer.value) {
     toggleEditMode(viewer.value, {
@@ -60,12 +72,12 @@ function handleToggleEditMode() {
       eventHandler: eventHandler.value
     });
     
-    // 更新狀態
+    // 更新状态
     isEditMode.value = !isEditMode.value;
   }
 }
 
-// 組件卸載時清理資源
+// 组件卸载时清理资源
 onUnmounted(() => {
   if (eventHandler.value) {
     eventHandler.value.destroy();
@@ -82,14 +94,14 @@ onUnmounted(() => {
     <div id="cesium-viewer" ref="viewerDivRef"></div>
     <div class="controls">
       <button @click="handleToggleBaseMap" class="toggle-button">
-        {{ isMapboxActive ? '切換到 Cesium 底圖' : '切換到 Mapbox 底圖' }}
+        {{ isMapboxActive ? '切换到 Cesium 底图' : '切换到 Mapbox 底图' }}
       </button>
       <button @click="handleToggleEditMode" class="toggle-button" :class="{ 'active': isEditMode }">
         {{ isEditMode ? '取消繪製' : '開始繪製多邊形' }}
       </button>
     </div>
     <div v-if="isEditMode" class="instruction">
-      左鍵點擊：添加點位 | 右鍵點擊：完成繪製
+      左键：添加點位 | 右键：完成繪製
     </div>
   </div>
 </template>
